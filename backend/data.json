@@ -1,0 +1,71 @@
+{
+  "bars": {},
+  "15-7SH3": {
+    "id": "7f8e7375-01b2-4921-8d4c-f776f4913cf7",
+    "code": "15-7SH3",
+    "name": "15",
+    "created_at": "2026-02-05T19:59:22.260Z",
+    "members": [
+      {
+        "id": "58164eb9-8c7b-4deb-943c-8a7d50959084",
+        "name": "Lucas",
+        "cash": 0,
+        "paid": 0,
+        "balance": 342.5
+      },
+      {
+        "id": "1fdd6b42-9229-4f6b-bb4d-08d77d1ee213",
+        "name": "Caio",
+        "cash": 15,
+        "paid": 0,
+        "balance": -342.5
+      }
+    ],
+    "expenses": [
+      {
+        "id": "241f714f-cf51-4c41-8f02-a08e05f3943d",
+        "item": "Catuaba",
+        "value": 25,
+        "paid_by": "58164eb9-8c7b-4deb-943c-8a7d50959084",
+        "consumers": [
+          "58164eb9-8c7b-4deb-943c-8a7d50959084"
+        ],
+        "created_at": "2026-02-05T19:59:52.760Z"
+      },
+      {
+        "id": "6e89f453-2e92-41f7-b51f-8ef14fe1a331",
+        "item": "Porção",
+        "value": 15,
+        "paid_by": "1fdd6b42-9229-4f6b-bb4d-08d77d1ee213",
+        "consumers": [
+          "58164eb9-8c7b-4deb-943c-8a7d50959084",
+          "1fdd6b42-9229-4f6b-bb4d-08d77d1ee213"
+        ],
+        "created_at": "2026-02-05T20:00:37.944Z"
+      },
+      {
+        "id": "712cb3b4-d44d-4a4d-9f70-38fded34093d",
+        "item": "Porcao",
+        "value": 200,
+        "paid_by": "58164eb9-8c7b-4deb-943c-8a7d50959084",
+        "consumers": [
+          "58164eb9-8c7b-4deb-943c-8a7d50959084",
+          "1fdd6b42-9229-4f6b-bb4d-08d77d1ee213"
+        ],
+        "created_at": "2026-02-05T20:01:17.952Z"
+      },
+      {
+        "id": "96c76451-1768-4332-b48e-4e6077747e62",
+        "item": "Drink",
+        "value": 250,
+        "paid_by": "58164eb9-8c7b-4deb-943c-8a7d50959084",
+        "consumers": [
+          "1fdd6b42-9229-4f6b-bb4d-08d77d1ee213"
+        ],
+        "created_at": "2026-02-05T20:14:31.589Z"
+      }
+    ],
+    "history": [],
+    "mode": "split"
+  }
+}
