@@ -46,14 +46,30 @@ function recalcBalances(session) {
 }
 
 module.exports = (req, res) => {
+  // Recarrega DB a cada requisição para garantir dados atualizados
+  DB = loadData();
+  DB.bars = DB.bars || {};
+  
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, DELETE, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
 
   if (req.method === 'OPTIONS') return res.status(200).end();
 
-  const { method, url, body } = req;
+  const { method, url, headers } = req;
   const pathname = new URL(url, `http://${req.headers.host}`).pathname;
+  
+  // Parse body se necessário
+  let body = req.body;
+  if (typeof body === 'string') {
+    try {
+      body = JSON.parse(body);
+    } catch (e) {
+      body = {};
+    }
+  }
+  
+  console.log('[API]', method, pathname, 'DB size:', Object.keys(DB).length);
 
   // POST /api/bars
   if (method === 'POST' && pathname === '/api/bars') {
@@ -90,6 +106,7 @@ module.exports = (req, res) => {
     };
     DB[code] = session;
     saveData(DB);
+    console.log('[API] Session criada:', code, 'DB size:', Object.keys(DB).length);
     return res.json({ ok: true, session });
   }
 
@@ -104,6 +121,7 @@ module.exports = (req, res) => {
   if (method === 'GET' && codeMatch) {
     const code = codeMatch[1];
     const session = DB[code];
+    console.log('[API] GET session:', code, 'found:', !!session, 'DB keys:', Object.keys(DB));
     if (!session) return res.status(404).json({ ok: false, error: 'Sessão não encontrada' });
     return res.json({ ok: true, session });
   }
@@ -113,11 +131,16 @@ module.exports = (req, res) => {
   if (method === 'POST' && memberMatch) {
     const code = memberMatch[1];
     const { name, cash } = body;
+    console.log('[API] addMember:', code, 'name:', name, 'DB keys:', Object.keys(DB));
     const session = DB[code];
-    if (!session) return res.status(404).json({ ok: false, error: 'Sessão não encontrada' });
+    if (!session) {
+      console.log('[API] Session not found for code:', code);
+      return res.status(404).json({ ok: false, error: 'Sessão não encontrada' });
+    }
     const member = { id: uuidv4(), name, cash: cash || 0, balance: 0 };
     session.members.push(member);
     saveData(DB);
+    console.log('[API] Member added:', member.id);
     return res.json({ ok: true, member, session });
   }
 
@@ -188,5 +211,6 @@ module.exports = (req, res) => {
     return res.json({ ok: true, session });
   }
 
+  console.log('[API] 404:', method, pathname);
   return res.status(404).json({ ok: false, error: 'Rota não encontrada' });
 };
