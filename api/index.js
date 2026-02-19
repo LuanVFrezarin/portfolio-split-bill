@@ -1,25 +1,45 @@
 const fs = require('fs');
+const path = require('path');
 const { v4: uuidv4 } = require('uuid');
 
-const DATA_FILE = '/tmp/racha-data.json';
+// Tenta usar /tmp se disponível (local), caso contrário usa um arquivo em /tmp como fallback
+const DATA_FILE = process.env.VERCEL ? '/tmp/racha-data.json' : path.join('/tmp', 'racha-data.json');
+
+// Cache em memória como fallback para Vercel
+let IN_MEMORY_DB = null;
 
 function loadData() {
   try {
+    // Primeiro tenta ler do arquivo
     if (fs.existsSync(DATA_FILE)) {
       const raw = fs.readFileSync(DATA_FILE, 'utf-8');
-      return JSON.parse(raw || '{}');
+      const data = JSON.parse(raw || '{}');
+      IN_MEMORY_DB = data; // Atualiza cache
+      return data;
     }
-    return {};
   } catch (e) {
-    return {};
+    console.warn('[API] Erro ao ler arquivo de dados:', e.message);
   }
+  
+  // Se falhar na leitura do arquivo, retorna cache em memória se disponível
+  if (IN_MEMORY_DB) {
+    console.log('[API] Usando cache em memória');
+    return IN_MEMORY_DB;
+  }
+  
+  return {};
 }
 
 function saveData(data) {
   try {
+    // Sempre salva no cache em memória
+    IN_MEMORY_DB = data;
+    
+    // Tenta salvar no arquivo
     fs.writeFileSync(DATA_FILE, JSON.stringify(data, null, 2));
+    console.log('[API] Dados salvos com sucesso');
   } catch (e) {
-    console.error('Erro ao salvar:', e);
+    console.warn('[API] Erro ao salvar no arquivo (usando cache em memória):', e.message);
   }
 }
 
@@ -69,7 +89,10 @@ module.exports = (req, res) => {
     }
   }
   
-  console.log('[API]', method, pathname, 'DB size:', Object.keys(DB).length);
+  const dbKeys = Object.keys(DB).filter(k => DB[k].code); // Sessions apenas
+  const dbSize = dbKeys.length;
+  console.log('[API] [' + new Date().toISOString() + ']', method, pathname);
+  console.log('[API] DB Sessions:', dbSize, 'Keys:', dbKeys.join(', '));
 
   // POST /api/bars
   if (method === 'POST' && pathname === '/api/bars') {
@@ -91,9 +114,15 @@ module.exports = (req, res) => {
   if (method === 'POST' && pathname === '/api/sessions') {
     const { name } = body;
     const existing = Object.values(DB).find(s => s.name === name && s.code);
-    if (existing) return res.json({ ok: true, session: existing, existing: true });
+    if (existing) {
+      console.log('[API] Session já existe:', existing.code);
+      return res.json({ ok: true, session: existing, existing: true });
+    }
     const code = genCode(name);
-    if (Object.values(DB).some(s => s.code === code)) return res.status(400).json({ ok: false, error: 'Código duplicado' });
+    if (Object.values(DB).some(s => s.code === code)) {
+      console.log('[API] Erro: Código duplicado:', code);
+      return res.status(400).json({ ok: false, error: 'Código duplicado' });
+    }
     const session = {
       id: uuidv4(),
       code,
@@ -106,13 +135,15 @@ module.exports = (req, res) => {
     };
     DB[code] = session;
     saveData(DB);
-    console.log('[API] Session criada:', code, 'DB size:', Object.keys(DB).length);
+    console.log('[API] ✓ Session criada:', code);
+    console.log('[API] ✓ DB agora tem keys:', Object.keys(DB).filter(k => DB[k].code).join(', '));
     return res.json({ ok: true, session });
   }
 
   // GET /api/sessions
   if (method === 'GET' && pathname === '/api/sessions') {
     const sessions = Object.values(DB).filter(s => s.code).map(s => ({ code: s.code, name: s.name, created_at: s.created_at, memberCount: s.members.length }));
+    console.log('[API] GET /api/sessions retornando', sessions.length, 'sessões');
     return res.json({ ok: true, sessions });
   }
 
@@ -121,8 +152,15 @@ module.exports = (req, res) => {
   if (method === 'GET' && codeMatch) {
     const code = codeMatch[1];
     const session = DB[code];
-    console.log('[API] GET session:', code, 'found:', !!session, 'DB keys:', Object.keys(DB));
-    if (!session) return res.status(404).json({ ok: false, error: 'Sessão não encontrada' });
+    const allKeys = Object.keys(DB).filter(k => DB[k].code);
+    console.log('[API] GET session:', code);
+    console.log('[API] Procurando por:', code, 'Encontrado:', !!session);
+    console.log('[API] Session keys disponíveis:', allKeys.join(', '));
+    if (!session) {
+      console.log('[API] ✗ Sessão NÃO encontrada:', code);
+      return res.status(404).json({ ok: false, error: 'Sessão não encontrada' });
+    }
+    console.log('[API] ✓ Sessão encontrada:', code, 'com', session.members.length, 'membros');
     return res.json({ ok: true, session });
   }
 
@@ -131,16 +169,18 @@ module.exports = (req, res) => {
   if (method === 'POST' && memberMatch) {
     const code = memberMatch[1];
     const { name, cash } = body;
-    console.log('[API] addMember:', code, 'name:', name, 'DB keys:', Object.keys(DB));
     const session = DB[code];
+    const allKeys = Object.keys(DB).filter(k => DB[k].code);
+    console.log('[API] POST addMember:', code, 'name:', name);
+    console.log('[API] Session keys disponíveis:', allKeys.join(', '));
     if (!session) {
-      console.log('[API] Session not found for code:', code);
+      console.log('[API] ✗ Sessão NÃO encontrada para addMember:', code);
       return res.status(404).json({ ok: false, error: 'Sessão não encontrada' });
     }
     const member = { id: uuidv4(), name, cash: cash || 0, balance: 0 };
     session.members.push(member);
     saveData(DB);
-    console.log('[API] Member added:', member.id);
+    console.log('[API] ✓ Membro adicionado:', member.id, 'a sessão:', code);
     return res.json({ ok: true, member, session });
   }
 
