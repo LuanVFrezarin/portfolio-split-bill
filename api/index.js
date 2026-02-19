@@ -2,77 +2,48 @@ const fs = require('fs');
 const path = require('path');
 const { v4: uuidv4 } = require('uuid');
 
-// Tenta usar múltiplos locais de persistência (do mais para o menos confiável)
-const possiblePaths = [
-  process.env.TMPDIR || '/tmp',  // Linux/Vercel
-  process.env.TEMP || 'C:\\Windows\\Temp',  // Windows
-  process.cwd(),  // Diretório atual
-  process.env.HOME || process.env.USERPROFILE,  // Home do usuário
-];
-
-let DATA_FILE = null;
-let DATA_DIR = null;
-
-// Encontra o primeiro diretório que pode ser usado
-for (const possibleDir of possiblePaths) {
-  try {
-    if (possibleDir && fs.existsSync(possibleDir)) {
-      DATA_DIR = possibleDir;
-      DATA_FILE = path.join(possibleDir, 'racha-persistence.json');
-      console.log('[API] Usando DATA_FILE:', DATA_FILE);
-      break;
-    }
-  } catch (e) {
-    // Continua para o próximo
-  }
-}
-
-// Se nenhum diretório foi encontrado, usa /tmp
-if (!DATA_FILE) {
-  DATA_FILE = '/tmp/racha-persistence.json';
-  console.warn('[API] Nenhum diretório encontrado, usando fallback:', DATA_FILE);
-}
-
-// Cache em memória para redundância
+// Dados em memória - persistem durante a vida da função
 let IN_MEMORY_DB = null;
 
+// Tenta persistir para arquivo como backup
+const DATA_FILE = '/tmp/racha-persistence-backup.json';
+
 function loadData() {
+  // Se os dados já estão em memória, retorna
+  if (IN_MEMORY_DB) {
+    console.log('[API] Usando dados da memória');
+    return IN_MEMORY_DB;
+  }
+
+  // Tenta carregar do arquivo como fallback
   try {
-    // Primeiro tenta ler do arquivo
-    if (DATA_FILE && fs.existsSync(DATA_FILE)) {
+    if (fs.existsSync(DATA_FILE)) {
       const raw = fs.readFileSync(DATA_FILE, 'utf-8');
       const data = JSON.parse(raw || '{}');
-      IN_MEMORY_DB = data; // Atualiza cache
-      console.log('[API] Dados carregados do arquivo com sucesso');
+      IN_MEMORY_DB = data;
+      console.log('[API] Dados carregados do arquivo de backup');
       return data;
     }
   } catch (e) {
-    console.warn('[API] Erro ao ler arquivo de dados:', e.message);
+    console.warn('[API] Erro ao ler backup:', e.message);
   }
-  
-  // Se falhar na leitura do arquivo, retorna cache em memória se disponível
-  if (IN_MEMORY_DB) {
-    console.log('[API] Usando dados do cache em memória');
-    return IN_MEMORY_DB;
-  }
-  
-  console.log('[API] Nenhum dado encontrado, inicializando novo DB');
-  return {};
+
+  // Se nada funcionar, inicializa vazio
+  console.log('[API] Inicializando novo DB em memória');
+  IN_MEMORY_DB = {};
+  return IN_MEMORY_DB;
 }
 
 function saveData(data) {
+  // Sempre salva em memória
+  IN_MEMORY_DB = data;
+
+  // Tenta fazer backup em arquivo (não crítico)
   try {
-    // Sempre salva no cache em memória
-    IN_MEMORY_DB = data;
-    
-    // Tenta salvar no arquivo
-    if (DATA_FILE) {
-      fs.writeFileSync(DATA_FILE, JSON.stringify(data, null, 2));
-      console.log('[API] ✓ Dados salvos com sucesso em:', DATA_FILE);
-    }
+    fs.writeFileSync(DATA_FILE, JSON.stringify(data, null, 2));
+    console.log('[API] ✓ Backup salvo');
   } catch (e) {
-    console.warn('[API] ⚠ Erro ao salvar no arquivo (usando cache em memória):', e.message);
-    // Continua mesmo se falhar, pois temos cache em memória
+    console.warn('[API] ⚠ Aviso: backup não salvou (ok, continuando com mem memory)');
   }
 }
 
@@ -99,9 +70,8 @@ function recalcBalances(session) {
 }
 
 module.exports = (req, res) => {
-  // Recarrega DB a cada requisição para garantir dados atualizados
-  DB = loadData();
-  DB.bars = DB.bars || {};
+  // IMPORTANTE: Não recarrega do arquivo em cada requisição
+  // O DB em memória persiste durante as invocações da mesma instância serverless
   
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, DELETE, OPTIONS');
@@ -122,10 +92,8 @@ module.exports = (req, res) => {
     }
   }
   
-  const dbKeys = Object.keys(DB).filter(k => DB[k].code); // Sessions apenas
-  const dbSize = dbKeys.length;
-  console.log('[API] [' + new Date().toISOString() + ']', method, pathname);
-  console.log('[API] DB Sessions:', dbSize, 'Keys:', dbKeys.join(', '));
+  const dbKeys = Object.keys(DB).filter(k => DB[k].code && k !== 'bars');
+  console.log('[API] [' + new Date().toISOString() + ']', method, pathname, '| Sessions:', dbKeys.length);
 
   // POST /api/bars
   if (method === 'POST' && pathname === '/api/bars') {
