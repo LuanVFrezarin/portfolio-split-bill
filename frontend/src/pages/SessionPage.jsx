@@ -25,8 +25,11 @@ export default function SessionPage(){
 
   useEffect(()=>{
     // Carrega sessão inicial
+    console.log('SessionPage carregando para código:', code)
     const data = LocalAPI.getSession(code)
+    console.log('Resultado getSession:', data)
     if(data.ok) setSession(data.session)
+    else console.error('Erro ao carregar sessão:', data.error)
 
     // Escuta mudanças em tempo real (simula Socket.IO)
     const cleanup = useRealtimeSession(code, (updatedSession) => {
