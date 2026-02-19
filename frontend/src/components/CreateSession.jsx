@@ -22,20 +22,20 @@ export default function CreateSession(){
     fetchSessions()
   }, [])
 
-  function fetchSessions() {
-    const data = LocalAPI.getSessions()
+  async function fetchSessions() {
+    const data = await LocalAPI.getSessions()
     if(data.ok) setSessions(data.sessions)
   }
 
-  function resetSession(code) {
-    LocalAPI.resetSession(code)
-    fetchSessions() // refresh the list
+  async function resetSession(code) {
+    await LocalAPI.resetSession(code)
+    await fetchSessions() // refresh the list
   }
 
-  function deleteAllSessions() {
-    const data = LocalAPI.deleteAllSessions(deletePassword)
+  async function deleteAllSessions() {
+    const data = await LocalAPI.deleteAllSessions(deletePassword)
     if(data.ok) {
-      fetchSessions()
+      await fetchSessions()
       setShowDeleteModal(false)
       setDeletePassword('')
       setDeleteError('')
@@ -44,7 +44,7 @@ export default function CreateSession(){
     }
   }
 
-  function create(){
+  async function create(){
     if(!name) {
       setError('Digite o número da mesa!')
       return
@@ -52,16 +52,22 @@ export default function CreateSession(){
     setLoading(true)
     setError('')
     
-    const data = LocalAPI.createSession({ name })
-    if(data.ok && data.session) {
-      setSession(data.session)
-      setExisting(!!data.existing)
-      setShowQR(true)
-      fetchSessions() // refresh the list after creating
-    } else {
-      setError(data.error || 'Erro ao criar mesa!')
+    try {
+      const data = await LocalAPI.createSession({ name })
+      if(data.ok && data.session) {
+        setSession(data.session)
+        setExisting(!!data.existing)
+        setShowQR(true)
+        await fetchSessions() // refresh the list after creating
+      } else {
+        setError(data.error || 'Erro ao criar mesa!')
+      }
+    } catch (err) {
+      console.error('Erro ao criar mesa:', err)
+      setError('Erro ao criar mesa!')
+    } finally {
+      setLoading(false)
     }
-    setLoading(false)
   }
 
   return (

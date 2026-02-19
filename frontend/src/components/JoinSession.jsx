@@ -5,21 +5,31 @@ export default function JoinSession({code, onJoined}){
   const [name, setName] = useState('')
   const [cash, setCash] = useState('')
   const [loading, setLoading] = useState(false)
+  const [error, setError] = useState('')
 
-  function join(){
+  async function join(){
     if(!name) return alert('Informe seu nome')
     setLoading(true)
+    setError('')
     
-    const result = LocalAPI.addMember(code, { 
-      name, 
-      cash: Number(cash) || 0 
-    })
-    
-    setLoading(false)
-    if(result.ok){
-      onJoined(result.member)
-    } else {
+    try {
+      const result = await LocalAPI.addMember(code, { 
+        name, 
+        cash: Number(cash) || 0 
+      })
+      
+      if(result.ok){
+        onJoined(result.member)
+      } else {
+        setError(result.error || 'Erro ao entrar na mesa')
+        alert(result.error || 'Erro ao entrar na mesa')
+      }
+    } catch (err) {
+      console.error('Erro ao entrar:', err)
+      setError('Erro ao entrar na mesa')
       alert('Erro ao entrar na mesa')
+    } finally {
+      setLoading(false)
     }
   }
 
@@ -31,6 +41,7 @@ export default function JoinSession({code, onJoined}){
       <div className="flex gap-2">
         <button onClick={join} disabled={loading} className="px-3 py-2 bg-sky-500 rounded">{loading? 'Entrando...' : 'Entrar'}</button>
       </div>
+      {error && <div className="text-red-400 text-sm mt-2">{error}</div>}
     </div>
   )
 }

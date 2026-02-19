@@ -1,21 +1,16 @@
-// Serviço que simula backend usando localStorage
-// Todos os dados são salvos localmente no navegador durante o uso
+// Serviço que integra com backend via API REST
+// Fallback para localStorage quando backend não está disponível
+
+import { API_URL } from '../config'
 
 const STORAGE_KEY = 'racha_data'
 
-// Gera código único para mesa
-function genCode(name) {
-  const rand = Math.random().toString(36).slice(2, 6).toUpperCase()
-  const base = (name || 'MESA').replace(/[^A-Z0-9]/gi, '').slice(0, 6).toUpperCase() || 'MESA'
-  return `${base}-${rand}`
-}
-
-// Gera ID único
+// Gera ID único (para offline fallback)
 function genId() {
   return Math.random().toString(36).slice(2, 11) + Date.now().toString(36)
 }
 
-// Carrega dados do localStorage
+// Carrega dados do localStorage (fallback)
 function loadData() {
   try {
     const raw = localStorage.getItem(STORAGE_KEY)
@@ -25,7 +20,7 @@ function loadData() {
   }
 }
 
-// Salva dados no localStorage
+// Salva dados no localStorage (fallback)
 function saveData(data) {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(data))
   // Dispara evento customizado para atualizar componentes em tempo real
@@ -46,202 +41,293 @@ function recalcBalances(session) {
   }
 }
 
-// API simulada
+// API com fallback para localStorage
 export const LocalAPI = {
   // Criar/logar bar
-  createBar({ name, password, email, phone }) {
-    const data = loadData()
-    if (data.bars[name]) {
-      return { ok: false, error: 'Bar já existe' }
+  async createBar({ name, password, email, phone }) {
+    try {
+      const res = await fetch(`${API_URL}/api/bars`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name, password, email, phone })
+      })
+      const data = await res.json()
+      return data
+    } catch (e) {
+      console.error('Erro ao criar bar via API, usando localStorage:', e)
+      // Fallback
+      const data = loadData()
+      if (data.bars[name]) {
+        return { ok: false, error: 'Bar já existe' }
+      }
+      data.bars[name] = { password, email, phone }
+      saveData(data)
+      return { ok: true }
     }
-    data.bars[name] = { password, email, phone }
-    saveData(data)
-    return { ok: true }
   },
 
-  login({ name, password }) {
-    const data = loadData()
-    if (!data.bars[name] || data.bars[name].password !== password) {
-      return { ok: false, error: 'Credenciais inválidas' }
+  async login({ name, password }) {
+    try {
+      const res = await fetch(`${API_URL}/api/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name, password })
+      })
+      const data = await res.json()
+      return data
+    } catch (e) {
+      console.error('Erro ao fazer login via API, usando localStorage:', e)
+      // Fallback
+      const data = loadData()
+      if (!data.bars[name] || data.bars[name].password !== password) {
+        return { ok: false, error: 'Credenciais inválidas' }
+      }
+      return { ok: true, bar: name }
     }
-    return { ok: true, bar: name }
   },
 
   // Criar sessão/mesa
-  createSession({ name }) {
-    const data = loadData()
-    
-    // Verifica se mesa com mesmo nome já existe
-    const existing = Object.values(data.sessions).find(s => s.name === name)
-    if (existing) {
-      return { ok: true, session: existing, existing: true }
+  async createSession({ name }) {
+    try {
+      const res = await fetch(`${API_URL}/api/sessions`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name })
+      })
+      const data = await res.json()
+      return data
+    } catch (e) {
+      console.error('Erro ao criar sessão via API, usando localStorage:', e)
+      // Fallback
+      const data = loadData()
+      const existing = Object.values(data.sessions).find(s => s.name === name)
+      if (existing) {
+        return { ok: true, session: existing, existing: true }
+      }
+      return { ok: false, error: 'Sessão não encontrada - desconectado da API' }
     }
-
-    const code = genCode(name)
-    
-    // Impede código duplicado
-    if (data.sessions[code]) {
-      return { ok: false, error: 'Código gerado já existe, tente novamente!' }
-    }
-
-    const session = {
-      id: genId(),
-      code,
-      name: name || code,
-      created_at: new Date().toISOString(),
-      members: [],
-      expenses: [],
-      history: [],
-      mode: 'split'
-    }
-
-    data.sessions[code] = session
-    saveData(data)
-    return { ok: true, session }
   },
 
   // Listar sessões
-  getSessions() {
-    const data = loadData()
-    const sessions = Object.values(data.sessions).map(s => ({
-      code: s.code,
-      name: s.name,
-      created_at: s.created_at,
-      memberCount: s.members.length
-    }))
-    return { ok: true, sessions }
+  async getSessions() {
+    try {
+      const res = await fetch(`${API_URL}/api/sessions`)
+      const data = await res.json()
+      return data
+    } catch (e) {
+      console.error('Erro ao listar sessões via API, usando localStorage:', e)
+      // Fallback
+      const data = loadData()
+      const sessions = Object.values(data.sessions).map(s => ({
+        code: s.code,
+        name: s.name,
+        created_at: s.created_at,
+        memberCount: s.members.length
+      }))
+      return { ok: true, sessions }
+    }
   },
 
   // Buscar sessão específica
-  getSession(code) {
-    const data = loadData()
-    const session = data.sessions[code]
-    if (!session) {
-      return { ok: false, error: 'Sessão não encontrada' }
+  async getSession(code) {
+    try {
+      const res = await fetch(`${API_URL}/api/sessions/${code}`)
+      const data = await res.json()
+      console.log('[API] getSession resultado:', data)
+      return data
+    } catch (e) {
+      console.error('[API] Erro ao buscar sessão:', e)
+      console.error('[API] Tentando localStorage como fallback...')
+      // Fallback
+      const data = loadData()
+      const session = data.sessions[code]
+      if (!session) {
+        return { ok: false, error: 'Sessão não encontrada' }
+      }
+      return { ok: true, session }
     }
-    return { ok: true, session }
   },
 
   // Adicionar membro
-  addMember(code, { name, cash }) {
-    const data = loadData()
-    const session = data.sessions[code]
-    if (!session) {
-      return { ok: false, error: 'Sessão não encontrada' }
-    }
-
-    const member = {
-      id: genId(),
-      name,
-      cash: cash || 0,
-      paid: 0,
-      balance: 0
-    }
-
-    session.members.push(member)
-    
-    // IMPORTANTE: Adicione o novo membro retroativamente às despesas que não tinham consumidores específicos
-    // Se uma despesa tem "todos os membros" como consumidores, não precisa atualizar
-    // Mas se foi criada antes dele entrar, ele não tá lá
-    session.expenses.forEach(expense => {
-      // Se o número de consumidores é igual ao número de membros ANTES dele entrar
-      // Significa que foi "dividir entre todos"
-      // Agora que ele entrou, precisa ser incluído
-      if (expense.consumers.length === session.members.length - 1) {
-        expense.consumers.push(member.id)
+  async addMember(code, { name, cash }) {
+    try {
+      console.log('[API] addMember para mesa:', code, 'nome:', name)
+      const res = await fetch(`${API_URL}/api/sessions/${code}/members`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name, cash: cash || 0 })
+      })
+      const data = await res.json()
+      console.log('[API] addMember resultado:', data)
+      if (!data.ok) {
+        console.error('[API] Erro na resposta:', data)
       }
-    })
-    
-    recalcBalances(session)
-    saveData(data)
-    return { ok: true, member, session }
+      return data
+    } catch (e) {
+      console.error('[API] Erro ao adicionar membro:', e)
+      console.error('[API] Tentando localStorage como fallback...')
+      // Fallback
+      const data = loadData()
+      const session = data.sessions[code]
+      if (!session) {
+        return { ok: false, error: 'Sessão não encontrada' }
+      }
+
+      const member = {
+        id: genId(),
+        name,
+        cash: cash || 0,
+        paid: 0,
+        balance: 0
+      }
+
+      session.members.push(member)
+      recalcBalances(session)
+      saveData(data)
+      return { ok: true, member, session }
+    }
   },
 
   // Adicionar despesa
-  addExpense(code, { item, value, paid_by, consumers }) {
-    const data = loadData()
-    const session = data.sessions[code]
-    if (!session) {
-      return { ok: false, error: 'Sessão não encontrada' }
+  async addExpense(code, { item, value, paid_by, consumers }) {
+    try {
+      const res = await fetch(`${API_URL}/api/sessions/${code}/expenses`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ item, value, paid_by, consumers })
+      })
+      const data = await res.json()
+      return data
+    } catch (e) {
+      console.error('Erro ao adicionar despesa via API:', e)
+      // Fallback
+      const data = loadData()
+      const session = data.sessions[code]
+      if (!session) {
+        return { ok: false, error: 'Sessão não encontrada' }
+      }
+
+      const finalConsumers = Array.isArray(consumers) && consumers.length > 0
+        ? consumers
+        : session.members.map(m => m.id)
+
+      const expense = {
+        id: genId(),
+        item,
+        value: Number(value),
+        paid_by,
+        consumers: finalConsumers,
+        created_at: new Date().toISOString()
+      }
+
+      session.expenses.push(expense)
+      recalcBalances(session)
+      saveData(data)
+      return { ok: true, expense, session }
     }
-
-    // Se nenhum consumidor selecionado, dividir entre todos
-    const finalConsumers = Array.isArray(consumers) && consumers.length > 0
-      ? consumers
-      : session.members.map(m => m.id)
-
-    const expense = {
-      id: genId(),
-      item,
-      value: Number(value),
-      paid_by,
-      consumers: finalConsumers,
-      created_at: new Date().toISOString()
-    }
-
-    session.expenses.push(expense)
-    recalcBalances(session)
-    saveData(data)
-    return { ok: true, expense, session }
   },
 
   // Remover despesa
-  deleteExpense(code, expenseId) {
-    const data = loadData()
-    const session = data.sessions[code]
-    if (!session) {
-      return { ok: false, error: 'Sessão não encontrada' }
-    }
+  async deleteExpense(code, expenseId) {
+    try {
+      const res = await fetch(`${API_URL}/api/sessions/${code}/expenses/${expenseId}`, {
+        method: 'DELETE'
+      })
+      const data = await res.json()
+      return data
+    } catch (e) {
+      console.error('Erro ao remover despesa via API:', e)
+      // Fallback
+      const data = loadData()
+      const session = data.sessions[code]
+      if (!session) {
+        return { ok: false, error: 'Sessão não encontrada' }
+      }
 
-    const idx = session.expenses.findIndex(e => e.id === expenseId)
-    if (idx === -1) {
-      return { ok: false, error: 'Gasto não encontrado' }
-    }
+      const idx = session.expenses.findIndex(e => e.id === expenseId)
+      if (idx === -1) {
+        return { ok: false, error: 'Gasto não encontrado' }
+      }
 
-    session.expenses.splice(idx, 1)
-    recalcBalances(session)
-    saveData(data)
-    return { ok: true, session }
+      session.expenses.splice(idx, 1)
+      recalcBalances(session)
+      saveData(data)
+      return { ok: true, session }
+    }
   },
 
   // Resetar sessão
-  resetSession(code) {
-    const data = loadData()
-    const session = data.sessions[code]
-    if (!session) {
-      return { ok: false, error: 'Sessão não encontrada' }
-    }
+  async resetSession(code) {
+    try {
+      const res = await fetch(`${API_URL}/api/sessions/${code}/reset`, {
+        method: 'POST'
+      })
+      const data = await res.json()
+      return data
+    } catch (e) {
+      console.error('Erro ao resetar sessão via API:', e)
+      // Fallback
+      const data = loadData()
+      const session = data.sessions[code]
+      if (!session) {
+        return { ok: false, error: 'Sessão não encontrada' }
+      }
 
-    session.members = []
-    session.expenses = []
-    session.history = []
-    saveData(data)
-    return { ok: true, session }
+      session.members = []
+      session.expenses = []
+      session.history = []
+      saveData(data)
+      return { ok: true, session }
+    }
   },
 
   // Deletar todas as sessões
-  deleteAllSessions(password = 'admin') {
-    if (password !== 'admin') {
-      return { ok: false, error: 'Senha incorreta' }
+  async deleteAllSessions(password = 'admin') {
+    try {
+      const res = await fetch(`${API_URL}/api/sessions/admin/delete-all`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ password })
+      })
+      const data = await res.json()
+      return data
+    } catch (e) {
+      console.error('Erro ao deletar sessões via API:', e)
+      // Fallback
+      if (password !== 'admin') {
+        return { ok: false, error: 'Senha incorreta' }
+      }
+      const data = loadData()
+      data.sessions = {}
+      saveData(data)
+      return { ok: true }
     }
-    const data = loadData()
-    data.sessions = {}
-    saveData(data)
-    return { ok: true }
   },
 
   // Alterar modo (split/free)
-  updateMode(code, mode) {
-    const data = loadData()
-    const session = data.sessions[code]
-    if (!session) {
-      return { ok: false, error: 'Sessão não encontrada' }
-    }
+  async updateMode(code, mode) {
+    try {
+      const res = await fetch(`${API_URL}/api/sessions/${code}/mode`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ mode })
+      })
+      const data = await res.json()
+      return data
+    } catch (e) {
+      console.error('Erro ao atualizar modo via API:', e)
+      // Fallback
+      const data = loadData()
+      const session = data.sessions[code]
+      if (!session) {
+        return { ok: false, error: 'Sessão não encontrada' }
+      }
 
-    session.mode = mode
-    recalcBalances(session)
-    saveData(data)
-    return { ok: true, session }
+      session.mode = mode
+      recalcBalances(session)
+      saveData(data)
+      return { ok: true, session }
+    }
   }
 }
 

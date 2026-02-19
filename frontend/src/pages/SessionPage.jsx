@@ -26,10 +26,24 @@ export default function SessionPage(){
   useEffect(()=>{
     // Carrega sessão inicial
     console.log('SessionPage carregando para código:', code)
-    const data = LocalAPI.getSession(code)
-    console.log('Resultado getSession:', data)
-    if(data.ok) setSession(data.session)
-    else console.error('Erro ao carregar sessão:', data.error)
+    
+    const loadSession = async () => {
+      try {
+        const data = await LocalAPI.getSession(code)
+        console.log('Resultado getSession:', data)
+        if(data.ok) {
+          setSession(data.session)
+        } else {
+          console.error('Erro ao carregar sessão:', data.error)
+          alert(data.error || 'Mesa não encontrada')
+        }
+      } catch (err) {
+        console.error('Erro ao carregar sessão:', err)
+        alert('Erro ao carregar mesa')
+      }
+    }
+
+    loadSession()
 
     // Escuta mudanças em tempo real (simula Socket.IO)
     const cleanup = useRealtimeSession(code, (updatedSession) => {
@@ -63,51 +77,53 @@ export default function SessionPage(){
     // Se nenhum consumidor selecionado, dividir entre todos
     const selectedConsumers = consumers.length > 0 ? consumers : session.members.map(m => m.id)
     
-    const result = LocalAPI.addExpense(code, { 
+    LocalAPI.addExpense(code, { 
       item, 
       value: parsedValue, 
       paid_by: payerId, 
       consumers: selectedConsumers 
+    }).then(result => {
+      if(result.ok) {
+        setItem('')
+        setValue('')
+        setConsumers([])
+      }
     })
-    
-    if(result.ok) {
-      setItem('')
-      setValue('')
-      setConsumers([])
-    }
   }
 
   function addManualMember(){
     if(!manualName) return alert('Preencha o nome')
     
-    const result = LocalAPI.addMember(code, { 
+    LocalAPI.addMember(code, { 
       name: manualName, 
       cash: Number(manualCash)||0 
+    }).then(result => {
+      if(result.ok) {
+        setManualName('')
+        setManualCash('')
+        setShowAddManual(false)
+      } else {
+        alert('Erro ao adicionar pessoa')
+      }
     })
-    
-    if(result.ok) {
-      setManualName('')
-      setManualCash('')
-      setShowAddManual(false)
-    } else {
-      alert('Erro ao adicionar pessoa')
-    }
   }
 
   function racharAll(){
-    const result = LocalAPI.updateMode(code, 'split')
-    if(!result.ok) {
-      alert('Erro ao aplicar racha')
-    }
+    LocalAPI.updateMode(code, 'split').then(result => {
+      if(!result.ok) {
+        alert('Erro ao aplicar racha')
+      }
+    })
   }
 
   function deleteExpense(expenseId) {
     if(!confirm('Remover este gasto?')) return
     
-    const result = LocalAPI.deleteExpense(code, expenseId)
-    if(!result.ok) {
-      alert('Erro ao remover gasto')
-    }
+    LocalAPI.deleteExpense(code, expenseId).then(result => {
+      if(!result.ok) {
+        alert('Erro ao remover gasto')
+      }
+    })
   }
 
   return (

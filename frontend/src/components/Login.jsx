@@ -9,17 +9,27 @@ export default function Login({ onLogin }) {
   const [phone, setPhone] = useState('')
   const [isRegister, setIsRegister] = useState(false)
   const [error, setError] = useState('')
+  const [loading, setLoading] = useState(false)
 
-  function handleSubmit() {
-    const data = isRegister 
-      ? LocalAPI.createBar({ name, password, email, phone })
-      : LocalAPI.login({ name, password })
-    
-    if (data.ok) {
-      localStorage.setItem('bar', name)
-      onLogin(name)
-    } else {
-      setError(data.error)
+  async function handleSubmit() {
+    setLoading(true)
+    setError('')
+    try {
+      const data = isRegister 
+        ? await LocalAPI.createBar({ name, password, email, phone })
+        : await LocalAPI.login({ name, password })
+      
+      if (data.ok) {
+        localStorage.setItem('bar', name)
+        onLogin(name)
+      } else {
+        setError(data.error || 'Erro ao fazer login')
+      }
+    } catch (err) {
+      console.error('Erro:', err)
+      setError('Erro ao conectar - tente novamente')
+    } finally {
+      setLoading(false)
     }
   }
 
@@ -27,22 +37,26 @@ export default function Login({ onLogin }) {
     alert('Para recuperar a senha, entre em contato com o suporte: suporte@racha2.com')
   }
 
-  function handleRecruiterAccess() {
+  async function handleRecruiterAccess() {
     // Criar conta de recrutador automaticamente se não existir
     const recruiterName = 'Recrutador Demo'
     const recruiterPassword = 'demo123'
     
-    // Tenta criar, se já existe não reclama
-    LocalAPI.createBar({ 
-      name: recruiterName, 
-      password: recruiterPassword, 
-      email: 'recruiter@demo.com', 
-      phone: '(00) 00000-0000' 
-    })
-    
-    // Faz login
-    localStorage.setItem('bar', recruiterName)
-    onLogin(recruiterName)
+    try {
+      // Tenta criar, se já existe não reclama
+      await LocalAPI.createBar({ 
+        name: recruiterName, 
+        password: recruiterPassword, 
+        email: 'recruiter@demo.com', 
+        phone: '(00) 00000-0000' 
+      })
+      
+      // Faz login
+      localStorage.setItem('bar', recruiterName)
+      onLogin(recruiterName)
+    } catch (err) {
+      console.error('Erro ao acessar demo:', err)
+    }
   }
 
   return (
@@ -212,9 +226,10 @@ export default function Login({ onLogin }) {
           whileHover={{ scale: 1.05, boxShadow: '0 0 20px rgba(16, 185, 129, 0.4)' }}
           whileTap={{ scale: 0.95 }}
           onClick={handleSubmit}
-          className="w-full py-4 bg-gradient-to-r from-emerald-500 to-sky-500 rounded-lg text-white font-bold text-lg shadow-lg hover:shadow-xl transition-all"
+          disabled={loading}
+          className="w-full py-4 bg-gradient-to-r from-emerald-500 to-sky-500 rounded-lg text-white font-bold text-lg shadow-lg hover:shadow-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed"
         >
-          {isRegister ? '🚀 Cadastrar' : '🎉 Entrar'}
+          {loading ? 'Conectando...' : (isRegister ? '🚀 Cadastrar' : '🎉 Entrar')}
         </motion.button>
 
         <motion.button
