@@ -151,11 +151,21 @@ module.exports = (req, res) => {
   const codeMatch = pathname.match(/^\/api\/sessions\/([^/]+)$/);
   if (method === 'GET' && codeMatch) {
     const code = codeMatch[1];
-    const session = DB[code];
+    let session = DB[code];
     const allKeys = Object.keys(DB).filter(k => DB[k].code);
-    console.log('[API] GET session:', code);
-    console.log('[API] Procurando por:', code, 'Encontrado:', !!session);
+    console.log('[API] GET session: code="' + code + '"');
+    console.log('[API] Procurando DB["' + code + '"]:', !!DB[code]);
     console.log('[API] Session keys disponíveis:', allKeys.join(', '));
+    
+    if (!session) {
+      // Tenta case-insensitive
+      const caseInsensitiveKey = Object.keys(DB).find(k => k.toUpperCase() === code.toUpperCase() && DB[k].code);
+      if (caseInsensitiveKey) {
+        console.log('[API] ✓ Encontrado com case-insensitive:', code, '->', caseInsensitiveKey);
+        session = DB[caseInsensitiveKey];
+      }
+    }
+    
     if (!session) {
       console.log('[API] ✗ Sessão NÃO encontrada:', code);
       return res.status(404).json({ ok: false, error: 'Sessão não encontrada' });
@@ -171,9 +181,23 @@ module.exports = (req, res) => {
     const { name, cash } = body;
     const session = DB[code];
     const allKeys = Object.keys(DB).filter(k => DB[k].code);
-    console.log('[API] POST addMember:', code, 'name:', name);
+    console.log('[API] POST addMember: code="' + code + '" name="' + name + '"');
+    console.log('[API] DB Structure:', JSON.stringify(Object.entries(DB).map(([k, v]) => [k, !!v.code])));
     console.log('[API] Session keys disponíveis:', allKeys.join(', '));
+    console.log('[API] Procurando DB["' + code + '"]:', !!DB[code]);
+    
     if (!session) {
+      // Tenta case-insensitive
+      const caseInsensitiveKey = Object.keys(DB).find(k => k.toUpperCase() === code.toUpperCase() && DB[k].code);
+      if (caseInsensitiveKey) {
+        console.log('[API] ✓ Encontrado com case-insensitive:', code, '->', caseInsensitiveKey);
+        const member = { id: uuidv4(), name, cash: cash || 0, balance: 0 };
+        DB[caseInsensitiveKey].members.push(member);
+        saveData(DB);
+        console.log('[API] ✓ Membro adicionado:', member.id, 'a sessão:', caseInsensitiveKey);
+        return res.json({ ok: true, member, session: DB[caseInsensitiveKey] });
+      }
+      
       console.log('[API] ✗ Sessão NÃO encontrada para addMember:', code);
       return res.status(404).json({ ok: false, error: 'Sessão não encontrada' });
     }
