@@ -7,9 +7,11 @@ const STORAGE_KEY = 'racha_data'
 
 // Determina a URL base da API
 function getApiUrl() {
+  // Se API_URL está definido em config (localhost:4000), usar como é
   if (API_URL) return API_URL;
-  // Em produção na Vercel, usar a mesma origem com /api
-  return window.location.origin + '/api';
+  
+  // Em produção na Vercel, usar /api na mesma origem
+  return '/api';
 }
 
 const BASE_API_URL = getApiUrl()
@@ -55,7 +57,7 @@ export const LocalAPI = {
   // Criar/logar bar
   async createBar({ name, password, email, phone }) {
     try {
-      const res = await fetch(`${BASE_API_URL}/api/bars`, {
+      const res = await fetch(`${BASE_API_URL}/bars`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name, password, email, phone })
@@ -77,7 +79,7 @@ export const LocalAPI = {
 
   async login({ name, password }) {
     try {
-      const res = await fetch(`${BASE_API_URL}/api/login`, {
+      const res = await fetch(`${BASE_API_URL}/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name, password })
@@ -98,7 +100,7 @@ export const LocalAPI = {
   // Criar sessão/mesa
   async createSession({ name }) {
     try {
-      const res = await fetch(`${BASE_API_URL}/api/sessions`, {
+      const res = await fetch(`${BASE_API_URL}/sessions`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name })
@@ -120,7 +122,7 @@ export const LocalAPI = {
   // Listar sessões
   async getSessions() {
     try {
-      const res = await fetch(`${BASE_API_URL}/api/sessions`)
+      const res = await fetch(`${BASE_API_URL}/sessions`)
       const data = await res.json()
       return data
     } catch (e) {
@@ -140,7 +142,7 @@ export const LocalAPI = {
   // Buscar sessão específica
   async getSession(code) {
     try {
-      const res = await fetch(`${BASE_API_URL}/api/sessions/${code}`)
+      const res = await fetch(`${BASE_API_URL}/sessions/${code}`)
       const data = await res.json()
       console.log('[API] getSession resultado:', data)
       return data
@@ -161,7 +163,7 @@ export const LocalAPI = {
   async addMember(code, { name, cash }) {
     try {
       console.log('[API] addMember para mesa:', code, 'nome:', name)
-      const res = await fetch(`${BASE_API_URL}/api/sessions/${code}/members`, {
+      const res = await fetch(`${BASE_API_URL}/sessions/${code}/members`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name, cash: cash || 0 })
@@ -200,7 +202,7 @@ export const LocalAPI = {
   // Adicionar despesa
   async addExpense(code, { item, value, paid_by, consumers }) {
     try {
-      const res = await fetch(`${BASE_API_URL}/api/sessions/${code}/expenses`, {
+      const res = await fetch(`${BASE_API_URL}/sessions/${code}/expenses`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ item, value, paid_by, consumers })
@@ -239,7 +241,7 @@ export const LocalAPI = {
   // Remover despesa
   async deleteExpense(code, expenseId) {
     try {
-      const res = await fetch(`${BASE_API_URL}/api/sessions/${code}/expenses/${expenseId}`, {
+      const res = await fetch(`${BASE_API_URL}/sessions/${code}/expenses/${expenseId}`, {
         method: 'DELETE'
       })
       const data = await res.json()
@@ -268,7 +270,7 @@ export const LocalAPI = {
   // Resetar sessão
   async resetSession(code) {
     try {
-      const res = await fetch(`${BASE_API_URL}/api/sessions/${code}/reset`, {
+      const res = await fetch(`${BASE_API_URL}/sessions/${code}/reset`, {
         method: 'POST'
       })
       const data = await res.json()
@@ -293,7 +295,7 @@ export const LocalAPI = {
   // Deletar todas as sessões
   async deleteAllSessions(password = 'admin') {
     try {
-      const res = await fetch(`${BASE_API_URL}/api/sessions/admin/delete-all`, {
+      const res = await fetch(`${BASE_API_URL}/sessions/admin/delete-all`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ password })
@@ -316,7 +318,7 @@ export const LocalAPI = {
   // Alterar modo (split/free)
   async updateMode(code, mode) {
     try {
-      const res = await fetch(`${BASE_API_URL}/api/sessions/${code}/mode`, {
+      const res = await fetch(`${BASE_API_URL}/sessions/${code}/mode`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ mode })
