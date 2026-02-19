@@ -3,6 +3,7 @@ import { BrowserRouter, Routes, Route, Link, useLocation } from 'react-router-do
 import Home from './pages/Home'
 import SessionPage from './pages/SessionPage'
 import Login from './components/Login'
+import DebugPanel from './components/DebugPanel'
 import { motion } from 'framer-motion'
 
 function AppContent({ bar, setBar }) {
@@ -38,6 +39,7 @@ function AppContent({ bar, setBar }) {
           <Route path="/mesa/:code" element={<SessionPage/>} />
         </Routes>
       </main>
+      <DebugPanel />
     </div>
   )
 }
