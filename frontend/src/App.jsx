@@ -9,7 +9,7 @@ function AppContent({ bar, setBar }) {
   const location = useLocation()
   
   // Permite acesso a /mesa/:code sem estar logado (via QR code)
-  const isMesaPage = /^\/mesa\/\d+$/.test(location.pathname)
+  const isMesaPage = location.pathname.startsWith('/mesa/')
   
   if (!bar && !isMesaPage) {
     return <Login onLogin={setBar} />
