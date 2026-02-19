@@ -170,7 +170,7 @@ app.post('/api/sessions/:code/close', (req, res) => {
 });
 
 // Update session mode (split or free)
-app.patch('/api/sessions/:code/mode', (req, res) => {
+app.post('/api/sessions/:code/mode', (req, res) => {
   const { code } = req.params;
   const { mode } = req.body; // expected 'split' or 'free'
   const session = DB[code];
@@ -193,12 +193,17 @@ app.post('/api/sessions/:code/reset', (req, res) => {
   res.json({ ok: true });
 });
 
-app.delete('/api/sessions', (req, res) => {
+app.post('/api/sessions/admin/delete-all', (req, res) => {
   const { password } = req.body;
-  if (password !== '1234') return res.status(403).json({ ok: false, error: 'Senha incorreta' });
-  for (let key in DB) delete DB[key];
+  if (password !== 'admin') return res.status(403).json({ ok: false, error: 'Senha incorreta' });
+  // Delete all sessions but keep bars
+  const keys = Object.keys(DB);
+  for (let key of keys) {
+    if (DB[key].code) { // it's a session, not bars
+      delete DB[key];
+    }
+  }
   saveData(DB);
-  // emit to all rooms to disconnect or something, but for simplicity
   res.json({ ok: true });
 });
 
