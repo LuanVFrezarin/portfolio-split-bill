@@ -2,19 +2,48 @@ const fs = require('fs');
 const path = require('path');
 const { v4: uuidv4 } = require('uuid');
 
-// Tenta usar /tmp se disponível (local), caso contrário usa um arquivo em /tmp como fallback
-const DATA_FILE = process.env.VERCEL ? '/tmp/racha-data.json' : path.join('/tmp', 'racha-data.json');
+// Tenta usar múltiplos locais de persistência (do mais para o menos confiável)
+const possiblePaths = [
+  process.env.TMPDIR || '/tmp',  // Linux/Vercel
+  process.env.TEMP || 'C:\\Windows\\Temp',  // Windows
+  process.cwd(),  // Diretório atual
+  process.env.HOME || process.env.USERPROFILE,  // Home do usuário
+];
 
-// Cache em memória como fallback para Vercel
+let DATA_FILE = null;
+let DATA_DIR = null;
+
+// Encontra o primeiro diretório que pode ser usado
+for (const possibleDir of possiblePaths) {
+  try {
+    if (possibleDir && fs.existsSync(possibleDir)) {
+      DATA_DIR = possibleDir;
+      DATA_FILE = path.join(possibleDir, 'racha-persistence.json');
+      console.log('[API] Usando DATA_FILE:', DATA_FILE);
+      break;
+    }
+  } catch (e) {
+    // Continua para o próximo
+  }
+}
+
+// Se nenhum diretório foi encontrado, usa /tmp
+if (!DATA_FILE) {
+  DATA_FILE = '/tmp/racha-persistence.json';
+  console.warn('[API] Nenhum diretório encontrado, usando fallback:', DATA_FILE);
+}
+
+// Cache em memória para redundância
 let IN_MEMORY_DB = null;
 
 function loadData() {
   try {
     // Primeiro tenta ler do arquivo
-    if (fs.existsSync(DATA_FILE)) {
+    if (DATA_FILE && fs.existsSync(DATA_FILE)) {
       const raw = fs.readFileSync(DATA_FILE, 'utf-8');
       const data = JSON.parse(raw || '{}');
       IN_MEMORY_DB = data; // Atualiza cache
+      console.log('[API] Dados carregados do arquivo com sucesso');
       return data;
     }
   } catch (e) {
@@ -23,10 +52,11 @@ function loadData() {
   
   // Se falhar na leitura do arquivo, retorna cache em memória se disponível
   if (IN_MEMORY_DB) {
-    console.log('[API] Usando cache em memória');
+    console.log('[API] Usando dados do cache em memória');
     return IN_MEMORY_DB;
   }
   
+  console.log('[API] Nenhum dado encontrado, inicializando novo DB');
   return {};
 }
 
@@ -36,10 +66,13 @@ function saveData(data) {
     IN_MEMORY_DB = data;
     
     // Tenta salvar no arquivo
-    fs.writeFileSync(DATA_FILE, JSON.stringify(data, null, 2));
-    console.log('[API] Dados salvos com sucesso');
+    if (DATA_FILE) {
+      fs.writeFileSync(DATA_FILE, JSON.stringify(data, null, 2));
+      console.log('[API] ✓ Dados salvos com sucesso em:', DATA_FILE);
+    }
   } catch (e) {
-    console.warn('[API] Erro ao salvar no arquivo (usando cache em memória):', e.message);
+    console.warn('[API] ⚠ Erro ao salvar no arquivo (usando cache em memória):', e.message);
+    // Continua mesmo se falhar, pois temos cache em memória
   }
 }
 
